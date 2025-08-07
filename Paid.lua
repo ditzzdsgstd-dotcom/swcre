@@ -1,30 +1,21 @@
+-- Local OrionLib setup
 local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/1nig1htmare1234/SCRIPTS/main/Orion.lua"))()
 
+-- Create main window
 local Window = OrionLib:MakeWindow({
-    Name = "YoxanXHub | Hypershot V2.1",
+    Name = "YoxanXHub | Hypershot V1.5",
     HidePremium = false,
     SaveConfig = false,
-    ConfigFolder = "YoxanXHub"
+    IntroEnabled = true,
+    IntroText = "YoxanXHub Loaded"
 })
 
-local MainTab = Window:MakeTab({
-    Name = "Main",
-    Icon = "rbxassetid://4483362458",
-    PremiumOnly = false
-})
+-- Tabs
+local MainTab = Window:MakeTab({Name = "Main", Icon = "rbxassetid://4483362458", PremiumOnly = false})
+local CombatTab = Window:MakeTab({Name = "Combat", Icon = "rbxassetid://4483362458", PremiumOnly = false})
+local VisualTab = Window:MakeTab({Name = "Visual", Icon = "rbxassetid://4483362458", PremiumOnly = false})
 
-local CombatTab = Window:MakeTab({
-    Name = "Combat",
-    Icon = "rbxassetid://4483362458",
-    PremiumOnly = false
-})
-
-local VisualTab = Window:MakeTab({
-    Name = "Visual",
-    Icon = "rbxassetid://4483362458",
-    PremiumOnly = false
-})
-
+-- Silent Aim Toggle
 MainTab:AddToggle({
     Name = "Silent Aim (Headshot)",
     Default = true,
@@ -33,6 +24,7 @@ MainTab:AddToggle({
     end
 })
 
+-- ESP Toggle
 VisualTab:AddToggle({
     Name = "ESP Box + Name",
     Default = true,
@@ -41,6 +33,19 @@ VisualTab:AddToggle({
     end
 })
 
+-- ESP Text Size Slider
+VisualTab:AddSlider({
+    Name = "ESP Text Size",
+    Min = 8,
+    Max = 24,
+    Default = 12,
+    Increment = 1,
+    Callback = function(Value)
+        getgenv().ESPTextSize = Value
+    end
+})
+
+-- No Recoil Toggle
 CombatTab:AddToggle({
     Name = "Anti Recoil / Spread",
     Default = false,
@@ -49,6 +54,7 @@ CombatTab:AddToggle({
     end
 })
 
+-- Bring Head Feature Toggle
 MainTab:AddToggle({
     Name = "Bring Heads",
     Default = false,
@@ -57,6 +63,7 @@ MainTab:AddToggle({
     end
 })
 
+-- Wall Transparency Toggle
 VisualTab:AddToggle({
     Name = "Transparent Wall (Nearby)",
     Default = false,
@@ -66,12 +73,52 @@ VisualTab:AddToggle({
 })
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
-local Mouse = LocalPlayer:GetMouse()
 
--- Silent Aim: Get Closest Target to Crosshair
+-- ESP Folder
+local espFolder = Instance.new("Folder", CoreGui)
+espFolder.Name = "YoxanX_ESP"
+
+-- Clean old ESP
+local function ClearESP()
+    for _, v in pairs(espFolder:GetChildren()) do
+        v:Destroy()
+    end
+end
+
+-- ESP Function
+local function DrawESP()
+    ClearESP()
+    if not getgenv().ESPEnabled then return end
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            local nameTag = Drawing.new("Text")
+            nameTag.Text = player.Name
+            nameTag.Size = getgenv().ESPTextSize or 12
+            nameTag.Center = true
+            nameTag.Outline = true
+            nameTag.Color = Color3.fromRGB(0, 255, 0)
+            nameTag.Visible = true
+
+            RunService.RenderStepped:Connect(function()
+                if player.Character and player.Character:FindFirstChild("Head") then
+                    local pos, onScreen = Camera:WorldToViewportPoint(player.Character.Head.Position)
+                    if onScreen and getgenv().ESPEnabled then
+                        nameTag.Position = Vector2.new(pos.X, pos.Y - 20)
+                        nameTag.Visible = true
+                        nameTag.Size = getgenv().ESPTextSize or 12
+                    else
+                        nameTag.Visible = false
+                    end
+                end
+            end)
+        end
+    end
+end
+
+-- Silent Aim Target
 local function GetClosestTarget()
     local maxDistance = 500
     local closest = nil
@@ -80,7 +127,7 @@ local function GetClosestTarget()
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
             local head = player.Character.Head
             local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
-            local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
+            local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(mouse.X, mouse.Y)).Magnitude
             if onScreen and dist < shortest and dist <= maxDistance then
                 closest = head
                 shortest = dist
@@ -90,11 +137,10 @@ local function GetClosestTarget()
     return closest
 end
 
--- Hook __index untuk Silent Aim
+-- Hook for Silent Aim
 local mt = getrawmetatable(game)
 setreadonly(mt, false)
 local oldIndex = mt.__index
-
 mt.__index = function(t, k)
     if getgenv().SilentAimEnabled and tostring(k) == "Hit" then
         local target = GetClosestTarget()
@@ -105,7 +151,7 @@ mt.__index = function(t, k)
     return oldIndex(t, k)
 end
 
--- Anti Recoil / Spread Logic
+-- Anti Recoil Handler
 RunService.RenderStepped:Connect(function()
     if getgenv().AntiRecoil then
         for _, v in next, getgc(true) do
@@ -128,88 +174,27 @@ RunService.RenderStepped:Connect(function()
     if getgenv().BringHeads then
         for _, player in ipairs(Players:GetPlayers()) do
             if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
-                local head = player.Character.Head
-                head.CFrame = CFrame.new(Camera.CFrame.Position + Camera.CFrame.LookVector * 10)
+                player.Character.Head.CFrame = Camera.CFrame + Camera.CFrame.LookVector * 10
             end
         end
     end
 end)
 
--- Transparent Walls Logic
-RunService.RenderStepped:Connect(function()
-    if getgenv().WallTransparency then
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and obj.Transparency < 0.95 and not obj:IsDescendantOf(LocalPlayer.Character) then
-                local distance = (Camera.CFrame.Position - obj.Position).Magnitude
-                if distance < 50 then
-                    obj.LocalTransparencyModifier = 0.8
-                end
-            end
-        end
-    end
-end)
-
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
-local LocalPlayer = Players.LocalPlayer
-
--- ESP System
+-- Draw ESP Loop
 RunService.RenderStepped:Connect(function()
     if getgenv().ESPEnabled then
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
-                local head = player.Character.Head
-                if not head:FindFirstChild("YoxanXESP") then
-                    local Billboard = Instance.new("BillboardGui")
-                    Billboard.Name = "YoxanXESP"
-                    Billboard.Adornee = head
-                    Billboard.Size = UDim2.new(0, 200, 0, 50)
-                    Billboard.StudsOffset = Vector3.new(0, 3, 0)
-                    Billboard.AlwaysOnTop = true
-
-                    local NameTag = Instance.new("TextLabel")
-                    NameTag.Size = UDim2.new(1, 0, 1, 0)
-                    NameTag.BackgroundTransparency = 1
-                    NameTag.TextStrokeTransparency = 0.5
-                    NameTag.Text = player.Name
-                    NameTag.TextScaled = true
-                    NameTag.Font = Enum.Font.SourceSansBold
-                    NameTag.TextColor3 = player.Team == LocalPlayer.Team and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-                    NameTag.Parent = Billboard
-
-                    Billboard.Parent = head
-                end
-            end
-        end
+        DrawESP()
     else
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player.Character and player.Character:FindFirstChild("Head") then
-                local esp = player.Character.Head:FindFirstChild("YoxanXESP")
-                if esp then esp:Destroy() end
-            end
-        end
-    end
-end)
-
--- Wall Transparency Nearby
-RunService.RenderStepped:Connect(function()
-    if getgenv().WallTransparency then
-        for _, v in ipairs(workspace:GetDescendants()) do
-            if v:IsA("BasePart") and v.Transparency < 0.3 and v:IsDescendantOf(workspace) then
-                local dist = (v.Position - Camera.CFrame.Position).Magnitude
-                if dist <= 40 then
-                    v.Transparency = 0.7
-                    v.Material = Enum.Material.ForceField
-                end
-            end
-        end
+        ClearESP()
     end
 end)
 
 OrionLib:MakeNotification({
     Name = "YoxanXHub",
-    Content = "✅ All Features Are Ready!",
-    Image = "rbxassetid://7734068321", -- Icon bisa diganti sesuai preferensi
+    Content = "All features loaded successfully!",
+    Image = "rbxassetid://4483362458",
     Time = 5
 })
+
+-- Final init
+OrionLib:Init()
