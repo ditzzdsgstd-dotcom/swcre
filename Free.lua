@@ -1,204 +1,213 @@
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "YoxanXHub | Hypershot V1.5",
+   Name = "YoxanXHub | Hypershot V1.55",
    LoadingTitle = "YoxanXHub Loaded",
-   LoadingSubtitle = "Made by YoxanX",
-   ConfigurationSaving = {
-      Enabled = false
-   },
-   Discord = {
-      Enabled = false
-   },
+   LoadingSubtitle = "YoxanXHub V1.55 OP",
+   ConfigurationSaving = { Enabled = false },
+   Discord = { Enabled = false },
    KeySystem = false
 })
 
-local MainTab = Window:CreateTab("Main", 4483362458)
-local CombatTab = Window:CreateTab("Combat", 4483362458)
-local VisualTab = Window:CreateTab("Visual", 4483362458)
+local Main = Window:CreateTab("Main", 4483362458)
+local Combat = Window:CreateTab("Combat", 4483362458)
+local Visual = Window:CreateTab("Visual", 4483362458)
 
--- Silent Aim Toggle
-MainTab:CreateToggle({
-   Name = "Silent Aim (Headshot)",
+-- Variables
+getgenv().SilentAimEnabled = true
+getgenv().ESPEnabled = true
+getgenv().AntiRecoil = false
+getgenv().BringHeads = false
+getgenv().WallTransparency = false
+getgenv().ESPTextSize = 14
+
+-- Toggles
+Main:CreateToggle({
+   Name = "Silent Aim (Headshot + Prediction)",
    CurrentValue = true,
    Flag = "SilentAim",
-   Callback = function(Value)
-      getgenv().SilentAimEnabled = Value
-   end
+   Callback = function(v) getgenv().SilentAimEnabled = v end
 })
 
--- ESP Toggle
-VisualTab:CreateToggle({
+Visual:CreateToggle({
    Name = "ESP Box + Name",
    CurrentValue = true,
    Flag = "ESPEnabled",
-   Callback = function(Value)
-      getgenv().ESPEnabled = Value
-   end
+   Callback = function(v) getgenv().ESPEnabled = v end
 })
 
--- No Recoil Toggle
-CombatTab:CreateToggle({
+Visual:CreateSlider({
+   Name = "ESP Text Size",
+   Range = {10, 30},
+   Increment = 1,
+   CurrentValue = 14,
+   Flag = "ESPTextSize",
+   Callback = function(val) getgenv().ESPTextSize = val end
+})
+
+Combat:CreateToggle({
    Name = "Anti Recoil / Spread",
    CurrentValue = false,
    Flag = "AntiRecoil",
-   Callback = function(Value)
-      getgenv().AntiRecoil = Value
-   end
+   Callback = function(v) getgenv().AntiRecoil = v end
 })
 
--- Bring Head Feature Toggle
-MainTab:CreateToggle({
+Main:CreateToggle({
    Name = "Bring Heads",
    CurrentValue = false,
    Flag = "BringHeads",
-   Callback = function(Value)
-      getgenv().BringHeads = Value
-   end
+   Callback = function(v) getgenv().BringHeads = v end
 })
 
--- Wall Transparency Toggle
-VisualTab:CreateToggle({
+Visual:CreateToggle({
    Name = "Transparent Wall (Nearby)",
    CurrentValue = false,
    Flag = "WallTransparency",
-   Callback = function(Value)
-      getgenv().WallTransparency = Value
-   end
+   Callback = function(v) getgenv().WallTransparency = v end
 })
 
--- Silent Aim Function
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
 
+-- Silent Aim Target Finder with Prediction
 local function GetClosestTarget()
-   local maxDistance = 500
-   local closest = nil
+   local maxDist, target = 500, nil
    local shortest = math.huge
-   for _, player in ipairs(Players:GetPlayers()) do
-      if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
-         local head = player.Character.Head
-         local pos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(head.Position)
-         local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(mouse.X, mouse.Y)).Magnitude
-         if onScreen and dist < shortest and dist <= maxDistance then
-            closest = head
+   for _, plr in ipairs(Players:GetPlayers()) do
+      if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
+         local head = plr.Character.Head
+         local pos, onScreen = Camera:WorldToViewportPoint(head.Position)
+         local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
+         if onScreen and dist < shortest and dist <= maxDist then
             shortest = dist
+            target = head
          end
       end
    end
-   return closest
+   return target
 end
 
--- Silent Aim Hook
+-- Hook to redirect hit detection
 local mt = getrawmetatable(game)
 setreadonly(mt, false)
 local oldIndex = mt.__index
-
 mt.__index = function(t, k)
    if getgenv().SilentAimEnabled and tostring(k) == "Hit" then
       local target = GetClosestTarget()
       if target then
-         return target
+         local predicted = target.Position + (target.Velocity * 0.05)
+         return { Position = predicted }
       end
    end
    return oldIndex(t, k)
 end
 
--- Anti Recoil / Spread Logic
+-- Anti Recoil / Spread Loop
 RunService.RenderStepped:Connect(function()
    if getgenv().AntiRecoil then
       for _, v in next, getgc(true) do
          if typeof(v) == "table" and rawget(v, "Spread") then
-            rawset(v, "Spread", 0)
-            rawset(v, "BaseSpread", 0)
-            rawset(v, "MinCamRecoil", Vector3.new())
-            rawset(v, "MaxCamRecoil", Vector3.new())
-            rawset(v, "MinRotRecoil", Vector3.new())
-            rawset(v, "MaxRotRecoil", Vector3.new())
-            rawset(v, "MinTransRecoil", Vector3.new())
-            rawset(v, "MaxTransRecoil", Vector3.new())
+            v.Spread = 0
+            v.BaseSpread = 0
+            v.MinCamRecoil = Vector3.new()
+            v.MaxCamRecoil = Vector3.new()
+            v.MinRotRecoil = Vector3.new()
+            v.MaxRotRecoil = Vector3.new()
+            v.MinTransRecoil = Vector3.new()
+            v.MaxTransRecoil = Vector3.new()
          end
       end
    end
 end)
 
--- Bring Head Logic
+-- Bring Heads Logic
 RunService.RenderStepped:Connect(function()
    if getgenv().BringHeads then
-      for _, player in ipairs(Players:GetPlayers()) do
-         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
-            local head = player.Character.Head
-            head.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position + workspace.CurrentCamera.CFrame.LookVector * 10)
+      for _, plr in ipairs(Players:GetPlayers()) do
+         if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+            plr.Character.Head.CFrame = CFrame.new(Camera.CFrame.Position + Camera.CFrame.LookVector * 10)
          end
       end
    end
 end)
 
---// ESP
-local function CreateESP(player)
-    if player == game.Players.LocalPlayer then return end
-    if player.Character and player.Character:FindFirstChild("Head") then
-        local billboard = Instance.new("BillboardGui", player.Character.Head)
-        billboard.Name = "YoxanESP"
-        billboard.Adornee = player.Character.Head
-        billboard.Size = UDim2.new(0, 100, 0, 40)
-        billboard.StudsOffset = Vector3.new(0, 2, 0)
-        billboard.AlwaysOnTop = true
-
-        local name = Instance.new("TextLabel", billboard)
-        name.Size = UDim2.new(1, 0, 1, 0)
-        name.BackgroundTransparency = 1
-        name.Text = player.Name
-        name.TextColor3 = player.TeamColor.Color
-        name.TextStrokeTransparency = 0.5
-        name.Font = Enum.Font.SourceSansBold
-        name.TextScaled = true
-    end
-end
-
-local function ClearESP(player)
-    if player.Character and player.Character:FindFirstChild("Head") then
-        local esp = player.Character.Head:FindFirstChild("YoxanESP")
-        if esp then esp:Destroy() end
-    end
-end
-
-game:GetService("Players").PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
-        wait(1)
-        if getgenv().ESPEnabled then
-            CreateESP(player)
-        end
-    end)
+-- Wall Transparency
+RunService.RenderStepped:Connect(function()
+   if getgenv().WallTransparency then
+      for _, part in ipairs(workspace:GetDescendants()) do
+         if part:IsA("BasePart") and part.Transparency < 1 and not part:IsDescendantOf(LocalPlayer.Character) then
+            local distance = (part.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+            if distance < 20 then
+               part.LocalTransparencyModifier = 0.8
+            else
+               part.LocalTransparencyModifier = 0
+            end
+         end
+      end
+   end
 end)
 
-for _, player in pairs(game.Players:GetPlayers()) do
-    if getgenv().ESPEnabled then
-        CreateESP(player)
-    end
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Fungsi membuat ESP
+local function CreateESP(player)
+   if not player.Character or not player.Character:FindFirstChild("Head") then return end
+   local head = player.Character.Head
+
+   local billboard = Instance.new("BillboardGui")
+   billboard.Name = "YoxanXESP"
+   billboard.Adornee = head
+   billboard.AlwaysOnTop = true
+   billboard.Size = UDim2.new(0, 100, 0, 40)
+   billboard.StudsOffset = Vector3.new(0, 2, 0)
+
+   local nameLabel = Instance.new("TextLabel", billboard)
+   nameLabel.Size = UDim2.new(1, 0, 1, 0)
+   nameLabel.BackgroundTransparency = 1
+   nameLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+   nameLabel.TextStrokeTransparency = 0
+   nameLabel.Font = Enum.Font.GothamBold
+   nameLabel.TextScaled = true
+   nameLabel.Text = player.Name
+   nameLabel.Name = "ESPText"
+
+   billboard.Parent = head
 end
 
---// Wall Transparency Near Enemies
-local function UpdateWallTransparency()
-    if not getgenv().WallXRay then return end
-    for _, part in ipairs(workspace:GetDescendants()) do
-        if part:IsA("BasePart") and not part:IsDescendantOf(game.Players.LocalPlayer.Character) then
-            local distance = (part.Position - workspace.CurrentCamera.CFrame.Position).Magnitude
-            if distance <= 40 then
-                part.LocalTransparencyModifier = 0.7
+-- Update ESP
+local function UpdateESP()
+   for _, player in ipairs(Players:GetPlayers()) do
+      if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+         local head = player.Character.Head
+         if getgenv().ESPEnabled then
+            if not head:FindFirstChild("YoxanXESP") then
+               CreateESP(player)
             else
-                part.LocalTransparencyModifier = 0
+               local label = head:FindFirstChild("YoxanXESP"):FindFirstChild("ESPText")
+               if label then
+                  label.TextSize = getgenv().ESPTextSize or 15
+               end
             end
-        end
-    end
+         else
+            if head:FindFirstChild("YoxanXESP") then
+               head:FindFirstChild("YoxanXESP"):Destroy()
+            end
+         end
+      end
+   end
 end
 
-game:GetService("RunService").RenderStepped:Connect(UpdateWallTransparency)
+-- Loop
+RunService.RenderStepped:Connect(UpdateESP)
 
---// Rayfield UI Finish
 Rayfield:Notify({
-   Title = "YoxanXHub | Hypershot V1.5",
-   Content = "All Features Successfully Loaded.",
-   Duration = 6
+   Title = "YoxanXHub",
+   Content = "All features loaded successfully.",
+   Duration = 4,
+   Image = 4483362458
 })
